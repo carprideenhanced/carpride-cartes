@@ -35,7 +35,8 @@ jobs:
             code=$(curl -sSL --retry 3 -A "$UA" -o "$t.rd5" -w '%{http_code}' "$SOURCE/segments4/$t.rd5" || echo 000)
             if [ "$code" = 404 ]; then rm -f "$t.rd5"; echo "$t : pas de données (mer), ignoré"; continue; fi
             [ "$code" = 200 ] || { echo "$t : erreur $code"; exit 1; }
-            [ "$(stat -c %s "$t.rd5")" -gt 100000 ] || { echo "$t trop petit"; exit 1; }
+            # quelques carrés réels sont minuscules (îles : W20_N70 = 5 Ko) ; on refuse seulement une réponse vide
+            [ "$(stat -c %s "$t.rd5")" -gt 1000 ] || { echo "$t trop petit"; exit 1; }
             printf '%s\t%s\t%s\n' "$t.rd5" "$(stat -c %s "$t.rd5")" "$(sha256sum "$t.rd5" | cut -d' ' -f1)" >> ../index.tsv
             gh release upload cartes -R "$GITHUB_REPOSITORY" --clobber "$t.rd5"
             rm -f "$t.rd5"
