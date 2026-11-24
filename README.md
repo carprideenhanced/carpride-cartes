@@ -1,6 +1,6 @@
 # Cartes hors ligne — Carpride Enhanced Connect
 
-Copie mensuelle des cartes d'itinéraires BRouter (`.rd5`) qui couvrent la France et ses bordures, plus le fichier
+Copie mensuelle des cartes d'itinéraires BRouter (`.rd5`) qui couvrent la France et ses bordures, (liste dans `carres.txt` : grille complète Europe + Maghreb), plus le fichier
 `lookups.dat` qui les accompagne. L'appli les télécharge depuis la pré-version **cartes** de ce dépôt.
 
 - Source : https://brouter.de/brouter/segments4/ (projet BRouter, licence MIT).

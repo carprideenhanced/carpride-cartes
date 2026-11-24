@@ -1,5 +1,6 @@
-# Recopie mensuelle des cartes hors ligne BRouter (France et bordures) depuis brouter.de vers la pré-version
-# « cartes » de ce dépôt. L'appli Carpride Enhanced Connect les télécharge ici, jamais sur brouter.de.
+# Recopie mensuelle des cartes hors ligne BRouter depuis brouter.de vers la pré-version « cartes » de ce dépôt.
+# Liste des carrés : carres.txt. L'appli Carpride Enhanced Connect les télécharge ici, jamais sur brouter.de.
+# Les carrés sont traités un par un (télécharger, publier, effacer) pour ne pas remplir le disque du runner.
 name: cartes
 on:
   schedule:
@@ -11,52 +12,51 @@ concurrency: cartes
 jobs:
   recopie:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 330
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE: https://brouter.de/brouter
-      CARRES: W5_N40 W5_N45 W5_N50 E0_N40 E0_N45 E0_N50 E5_N40 E5_N45
     steps:
-      - name: Téléchargement
+      - uses: actions/checkout@v4
+      - name: Préparer la publication
         run: |
           set -euo pipefail
-          mkdir c && cd c
+          if ! gh release view cartes -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create cartes -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
+              --title "Cartes hors ligne" --notes "Cartes BRouter recopiées depuis brouter.de. Données © contributeurs OpenStreetMap (ODbL)."
+          fi
+      - name: Recopie carré par carré
+        run: |
+          set -euo pipefail
           UA="CarprideEnhancedConnect-cartes/1.0 (+https://carprideenhanced.github.io)"
-          for t in $CARRES; do
-            curl -fsSL --retry 3 -A "$UA" -o "$t.rd5" "$SOURCE/segments4/$t.rd5"
+          mkdir -p c && cd c
+          : > ../index.tsv
+          for t in $(grep -v '^#' ../carres.txt); do
+            code=$(curl -sSL --retry 3 -A "$UA" -o "$t.rd5" -w '%{http_code}' "$SOURCE/segments4/$t.rd5" || echo 000)
+            if [ "$code" = 404 ]; then rm -f "$t.rd5"; echo "$t : pas de données (mer), ignoré"; continue; fi
+            [ "$code" = 200 ] || { echo "$t : erreur $code"; exit 1; }
+            [ "$(stat -c %s "$t.rd5")" -gt 100000 ] || { echo "$t trop petit"; exit 1; }
+            printf '%s\t%s\t%s\n' "$t.rd5" "$(stat -c %s "$t.rd5")" "$(sha256sum "$t.rd5" | cut -d' ' -f1)" >> ../index.tsv
+            gh release upload cartes -R "$GITHUB_REPOSITORY" --clobber "$t.rd5"
+            rm -f "$t.rd5"
+            sleep 3          # pas de rafale sur le serveur bénévole de brouter.de
           done
           curl -fsSL --retry 3 -A "$UA" -o lookups.dat "$SOURCE/profiles2/lookups.dat"
-          ls -l
-      - name: Contrôle
-        run: |
-          set -euo pipefail
-          cd c
-          for f in *.rd5; do [ "$(stat -c %s "$f")" -gt 100000 ] || { echo "$f trop petit"; exit 1; }; done
           grep -q "^---lookupversion:" lookups.dat || { echo "lookups.dat invalide"; exit 1; }
-      - name: Index cartes.json
+          printf '%s\t%s\t%s\n' lookups.dat "$(stat -c %s lookups.dat)" "$(sha256sum lookups.dat | cut -d' ' -f1)" >> ../index.tsv
+          gh release upload cartes -R "$GITHUB_REPOSITORY" --clobber lookups.dat
+      - name: Index cartes.json (publié en dernier)
         run: |
           set -euo pipefail
-          cd c
           python3 - <<'PY'
-          import hashlib, json, os, datetime
+          import json, datetime
           fichiers = []
-          for nom in sorted(os.listdir('.')):
-              if nom.endswith('.rd5') or nom == 'lookups.dat':
-                  h = hashlib.sha256(open(nom, 'rb').read()).hexdigest()
-                  fichiers.append({"nom": nom, "taille": os.path.getsize(nom), "sha256": h})
+          for l in open('index.tsv'):
+              nom, taille, h = l.rstrip('\n').split('\t')
+              fichiers.append({"nom": nom, "taille": int(taille), "sha256": h})
           json.dump({"date": datetime.date.today().isoformat(), "source": "brouter.de",
                      "licence": "Données © contributeurs OpenStreetMap (ODbL)", "fichiers": fichiers},
                     open('cartes.json', 'w'), indent=1)
           PY
           cat cartes.json
-      - name: Publication (pré-version « cartes »)
-        run: |
-          set -euo pipefail
-          cd c
-          if ! gh release view cartes -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create cartes -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
-              --title "Cartes hors ligne" --notes "Cartes BRouter recopiées depuis brouter.de. Données © contributeurs OpenStreetMap (ODbL)."
-          fi
-          # cartes d'abord, index en dernier : l'appli ne voit la nouvelle date qu'une fois tout en place
-          gh release upload cartes -R "$GITHUB_REPOSITORY" --clobber *.rd5 lookups.dat
           gh release upload cartes -R "$GITHUB_REPOSITORY" --clobber cartes.json
