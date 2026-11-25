@@ -6,3 +6,7 @@ Copie mensuelle des cartes d'itinéraires BRouter (`.rd5`) qui couvrent la Franc
 - Source : https://brouter.de/brouter/segments4/ (projet BRouter, licence MIT).
 - Données : © contributeurs OpenStreetMap, licence ODbL (https://www.openstreetmap.org/copyright).
 - Mise à jour : automatique le 2 de chaque mois (`.github/workflows/cartes.yml`), ou à la main depuis l'onglet Actions.
+
+## Zones de vigilance
+Pré-version `zones` : `zones_vigilance.json.gz` (zones de vigilance, sans position de contrôle) et `zones.json`
+(date, taille, SHA-256). Mise à jour manuelle.
